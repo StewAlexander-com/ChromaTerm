@@ -24,12 +24,50 @@ pip install chromaterm
 uv tool install chromaterm
 ```
 
+### From this fork (GitHub install)
+
+If you want the version from this fork (`StewAlexander-com/ChromaTerm`), install directly from GitHub:
+
+```shell
+# pipx (recommended)
+pipx install "git+https://github.com/StewAlexander-com/ChromaTerm.git@main#egg=chromaterm"
+
+# pip
+pip install "git+https://github.com/StewAlexander-com/ChromaTerm.git@main#egg=chromaterm"
+
+# uv (as a tool)
+uv tool install git+https://github.com/StewAlexander-com/ChromaTerm.git@main
+```
+
+### From source (clone this repo)
+
+```shell
+git clone https://github.com/StewAlexander-com/ChromaTerm.git
+cd ChromaTerm
+
+# Using pipx to install the local checkout
+pipx install .
+
+# Or create a virtual environment and install in editable mode
+python -m venv .venv && . .venv/bin/activate
+pip install -e .
+
+# Run without installing (module mode)
+python -m chromaterm --help
+```
+
 ## Usage
 
 Prefix your command with `ct`. It's that simple.
 
 ```shell
 ct ssh somewhere
+```
+
+To run from a local clone without installing a console script, use:
+
+```shell
+python -m chromaterm ssh somewhere
 ```
 
 You can also pipe data into `ct`, but some programs behave differently when piped,

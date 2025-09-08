@@ -1,5 +1,6 @@
 '''The command line utility for ChromaTerm'''
 # pylint: disable=import-outside-toplevel
+from __future__ import annotations
 import argparse
 import atexit
 import io
@@ -9,6 +10,8 @@ import select
 import signal
 import sys
 from ctypes.util import find_library
+import socket
+from typing import Any, Final, List, Optional, Tuple, Union
 
 import yaml
 
@@ -16,14 +19,14 @@ from chromaterm import Color, Config, Palette, Rule, __version__
 
 # Possible locations of the config file, without the extension. Most-specific
 # locations lead in the list.
-CONFIG_LOCATIONS = [
+CONFIG_LOCATIONS: Final[List[str]] = [
     '~/.chromaterm',
     os.getenv('XDG_CONFIG_HOME', '~/.config') + '/chromaterm/chromaterm',
     '/etc/chromaterm/chromaterm',
 ]
 
 # Maximum chuck size per read
-READ_SIZE = 8192
+READ_SIZE: Final[int] = 8192
 
 # Sequences upon which ct will split during processing (ECMA 035 and 048):
 # * new lines, vertical spaces, form feeds;
@@ -31,7 +34,7 @@ READ_SIZE = 8192
 # * independent control functions (\e#), SCS (G0 through G3 sets);
 # * CSI (excluding SGR); and
 # * control strings (DSC, SOS, OSC, PM, APC).
-SPLIT_RE = re.compile(
+SPLIT_RE: Final[re.Pattern[bytes]] = re.compile(
     br'(\r\n?|[\n\v\f]|'
     br'\x1b[\x30-\x4f\x51-\x57\x59-\x5a\x5c\x60-\x7e]|'
     br'\x1b[\x23\x28-\x2b\x2d-\x2f][\x20-\x7e]|'
@@ -39,12 +42,12 @@ SPLIT_RE = re.compile(
     br'\x1b[\x50\x58\x5d\x5e\x5f][^\x07\x1b]*(?:\x07|\x1b\x5c)?)')
 
 # Control strings that have arbitrary lengths
-ANSI_CONTROL_STRINGS_START = (b'\x1b\x50', b'\x1b\x58', b'\x1b\x5d',
+ANSI_CONTROL_STRINGS_START: Final[Tuple[bytes, ...]] = (b'\x1b\x50', b'\x1b\x58', b'\x1b\x5d',
                               b'\x1b\x5e', b'\x1b\x5f')
-ANSI_CONTROL_STRINGS_END = (b'\x07', b'\x1b\x5c')
+ANSI_CONTROL_STRINGS_END: Final[Tuple[bytes, ...]] = (b'\x07', b'\x1b\x5c')
 
 
-def detect_truecolor_support():
+def detect_truecolor_support() -> bool:
     '''Returns True if the terminal likely supports 24-bit truecolor.'''
     colorterm = (os.getenv('COLORTERM') or '').lower()
     term = (os.getenv('TERM') or '').lower()
@@ -80,14 +83,14 @@ def detect_truecolor_support():
     return False
 
 
-def args_init(args=None):
+def args_init(args: Optional[List[str]] = None) -> argparse.Namespace:
     '''Returns the parsed arguments (an instance of argparse.Namespace).
 
     Args:
         args (list): A list of program arguments, Defaults to sys.argv.
     '''
-    formatter = lambda prog: argparse.HelpFormatter(prog, max_help_position=30)
-    parser = argparse.ArgumentParser(formatter_class=formatter)
+    formatter = lambda prog: argparse.HelpFormatter(prog, max_help_position=30)  # type: ignore[assignment]
+    parser = argparse.ArgumentParser(formatter_class=formatter)  # type: ignore[arg-type]
     parser.epilog = 'For more info, go to https://github.com/hSaria/ChromaTerm.'
 
     parser.add_argument('program',
@@ -156,13 +159,13 @@ def args_init(args=None):
     return args
 
 
-def eprint(*args, **kwargs):
+def eprint(*args: object, **kwargs: Any) -> None:
     '''Prints a message to stderr.'''
     # Use \r\n to move to beginning of the new line in raw mode
     print('ct:', *args, end='\r\n', file=sys.stderr, **kwargs)
 
 
-def get_default_config_location():
+def get_default_config_location() -> str:
     '''Returns the first location in `CONFIG_LOCATIONS` that points to a file,
     defaulting to the first item in the list.'''
     resolve = lambda x: os.path.expanduser(os.path.expandvars(x))
@@ -178,7 +181,7 @@ def get_default_config_location():
     return resolve(CONFIG_LOCATIONS[0] + '.yml')
 
 
-def get_wait_duration(buffer, min_wait=1 / 256, max_wait=1 / 8):
+def get_wait_duration(buffer: bytes, min_wait: float = 1 / 256, max_wait: float = 1 / 8) -> float:
     '''Returns the duration (float) to wait for more data before the last chunk
     of the received data can be processed independently.
 
@@ -201,7 +204,7 @@ def get_wait_duration(buffer, min_wait=1 / 256, max_wait=1 / 8):
     return min_wait
 
 
-def load_config(config, data, rgb=False, pcre=False):
+def load_config(config: Config, data: str, rgb: bool = False, pcre: bool = False) -> None:
     '''Reads configuration from a YAML-based string, formatted like so:
     palette:
       red: "#ff0000"
@@ -266,7 +269,7 @@ def load_config(config, data, rgb=False, pcre=False):
     config.rules = sorted(config.rules, key=lambda x: not x.exclusive)
 
 
-def parse_palette(data):
+def parse_palette(data: dict) -> Union[Palette, str]:
     '''Returns an instance of chromaterm.Palette if parsed correctly. Otherwise,
     a string with the error message is returned.
 
@@ -285,7 +288,7 @@ def parse_palette(data):
     return palette
 
 
-def parse_rule(data, palette=None, rgb=False, pcre=False):
+def parse_rule(data: dict, palette: Optional[Palette] = None, rgb: bool = False, pcre: bool = False) -> Union[Rule, str]:
     '''Returns an instance of chromaterm.Rule if parsed correctly. Otherwise, a
     string with the error message is returned.
 
@@ -321,7 +324,7 @@ def parse_rule(data, palette=None, rgb=False, pcre=False):
         return f'Error on {rule_repr}: re.error: {exception}'
 
 
-def process_input(config, data_fd, forward_fd=None, max_wait=None):
+def process_input(config: Config, data_fd: Union[int, socket.socket], forward_fd: Optional[Union[int, socket.socket]] = None, max_wait: Optional[float] = None) -> None:
     '''Processes input by reading from data_fd, highlighting it using config,
     then printing it to sys.stdout. If forward_fd is not None, any data it has
     will be written (forwarded) into data_fd.
@@ -414,7 +417,7 @@ def process_input(config, data_fd, forward_fd=None, max_wait=None):
         ready_fds = read_ready(*fds, timeout=max_wait)
 
 
-def read_file(location):
+def read_file(location: str) -> Optional[str]:
     '''Returns the contents of a file or `None` on error. The error is printed
     to stderr.
 
@@ -433,7 +436,7 @@ def read_file(location):
         return None
 
 
-def read_ready(*fds, timeout=None):
+def read_ready(*fds: int, timeout: Optional[float] = None) -> list:
     '''Returns a list of file descriptors that are ready to be read.
 
     Args:
@@ -443,7 +446,7 @@ def read_ready(*fds, timeout=None):
     return [] if not fds else select.select(fds, [], [], timeout)[0]
 
 
-def signal_chromaterm_instances(sig):
+def signal_chromaterm_instances(sig: int) -> int:
     '''Sends `sig` signal to all other ChromaTerm CLI instances.
 
     Returns:
@@ -470,7 +473,7 @@ def signal_chromaterm_instances(sig):
     return count
 
 
-def split_buffer(buffer):
+def split_buffer(buffer: bytes) -> Tuple[Tuple[bytes, bytes], ...]:
     '''Returns a tuple of tuples in the format of (data, separator). data should
     be highlighted while separator should be printed, unchanged, after data.
 
@@ -487,7 +490,7 @@ def split_buffer(buffer):
     return tuple(zip(chunks[0::2], chunks[1::2]))
 
 
-def main(args=None, max_wait=None, write_default=True):
+def main(args: Optional[List[str]] = None, max_wait: Optional[float] = None, write_default: bool = True) -> Union[int, str]:
     '''Command line utility entry point.
 
     Args:
