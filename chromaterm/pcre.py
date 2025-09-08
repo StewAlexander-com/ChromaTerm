@@ -32,6 +32,13 @@ class GroupIndex(collections.UserDict):
 
         return group_id
 
+    def get(self, name, default=None):
+        '''Mimic dict.get by returning the group id or default if not found.'''
+        try:
+            return self[name]
+        except KeyError:
+            return default
+
 
 class Pattern:
     '''PCRE2 Pattern. Like that of Python's, if it was stripped of everything.'''

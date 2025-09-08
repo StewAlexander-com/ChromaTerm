@@ -512,6 +512,7 @@ class Config:
         self.benchmark = benchmark
         self.benchmark_results = {}
         self.rules = []
+        self.disabled = False
 
     @staticmethod
     def get_insert_index(start, end, inserts):
@@ -650,6 +651,8 @@ class Config:
         Args:
             data (bytes): Bytes to highlight.
         '''
+        if self.disabled:
+            return data
         data, inserts = Color.strip_colors(data)
         inserts = self.get_inserts(data, inserts)
         resets_to_update = list(self._reset_codes)

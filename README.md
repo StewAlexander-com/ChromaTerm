@@ -14,7 +14,14 @@ regular expressions. It even works with interactive programs, like SSH.
 ## Installation
 
 ```shell
-pip3 install chromaterm
+# Recommended (isolated):
+pipx install chromaterm
+
+# Or with pip
+pip install chromaterm
+
+# Or using uv
+uv tool install chromaterm
 ```
 
 ## Usage
@@ -44,6 +51,12 @@ alias ssh="ct ssh"
 If you want to highlight your entire terminal, have ChromaTerm spawn your shell by
 modifying the shell command in your terminal's settings to `/usr/local/bin/ct /bin/bash --login`.
 Replace `/bin/bash` with your shell of choice.
+
+### Color control
+
+- To disable colors, pass `--no-color` or set the environment variable `NO_COLOR` (standard) or `CT_NO_COLOR=1`.
+- To force colors even if `NO_COLOR` is set, pass `--force-color`.
+- Truecolor is auto-detected and can be explicitly enabled with `--rgb`.
 
 ## Highlight Rules
 

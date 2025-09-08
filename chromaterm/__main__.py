@@ -44,6 +44,42 @@ ANSI_CONTROL_STRINGS_START = (b'\x1b\x50', b'\x1b\x58', b'\x1b\x5d',
 ANSI_CONTROL_STRINGS_END = (b'\x07', b'\x1b\x5c')
 
 
+def detect_truecolor_support():
+    '''Returns True if the terminal likely supports 24-bit truecolor.'''
+    colorterm = (os.getenv('COLORTERM') or '').lower()
+    term = (os.getenv('TERM') or '').lower()
+    term_program = (os.getenv('TERM_PROGRAM') or '').lower()
+
+    # Common, explicit indicators
+    if colorterm in ('truecolor', '24bit'):
+        return True
+
+    # TERM patterns frequently used by truecolor terminals
+    if ('truecolor' in term) or term.endswith('-direct') or 'direct' in term:
+        return True
+
+    # Popular terminals with truecolor
+    if any(x in term for x in ('xterm-kitty', 'wezterm', 'foot')):
+        return True
+    if term_program in ('iterm.app', 'apple_terminal', 'wezterm', 'vscode'):
+        return True
+
+    # GNOME / VTE-based terminals expose VTE_VERSION >= 3600 for truecolor
+    vte = os.getenv('VTE_VERSION')
+    if vte:
+        try:
+            if int(vte) >= 3600:
+                return True
+        except ValueError:
+            pass
+
+    # Windows Terminal (under WSL) indicator
+    if os.getenv('WT_SESSION'):
+        return True
+
+    return False
+
+
 def args_init(args=None):
     '''Returns the parsed arguments (an instance of argparse.Namespace).
 
@@ -86,6 +122,16 @@ def args_init(args=None):
                         help='use RGB colors (default: detect support, '
                         'fallback to xterm-256)')
 
+    parser.add_argument('--no-color',
+                        dest='no_color',
+                        action='store_true',
+                        help='disable color output (or set NO_COLOR/CT_NO_COLOR)')
+
+    parser.add_argument('--force-color',
+                        dest='force_color',
+                        action='store_true',
+                        help='force color output even if NO_COLOR is set')
+
     parser.add_argument('-v',
                         '--version',
                         action='version',
@@ -99,7 +145,13 @@ def args_init(args=None):
     args = parser.parse_args(args=args)
 
     # Detect rgb support if not specified
-    args.rgb = args.rgb or os.getenv('COLORTERM') in ('truecolor', '24bit')
+    args.rgb = args.rgb or detect_truecolor_support()
+
+    # Respect NO_COLOR and CT_NO_COLOR unless explicitly forced
+    env_no_color = os.getenv('NO_COLOR') is not None
+    env_ct_no_color = (os.getenv('CT_NO_COLOR') or '').lower() in (
+        '1', 'true', 'yes', 'on')
+    args.no_color = (args.no_color or env_no_color or env_ct_no_color)
 
     return args
 
@@ -489,6 +541,10 @@ def main(args=None, max_wait=None, write_default=True):
 
     # Trigger the initial loading
     reload_config_handler()
+
+    # Apply color disabling after config is loaded
+    if args.no_color and not args.force_color:
+        config.disabled = True
 
     # Ignore SIGINT (CTRL+C) and attach reload handler
     signal.signal(signal.SIGINT, signal.SIG_IGN)
