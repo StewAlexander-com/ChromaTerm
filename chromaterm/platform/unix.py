@@ -1,4 +1,5 @@
 '''Unix/macOS functions'''
+from __future__ import annotations
 import atexit
 import fcntl
 import os
@@ -9,12 +10,13 @@ import termios
 import threading
 import time
 import tty
+from typing import Optional
 
 # The frequency to check the child process' `cwd` and update our own
 CWD_UPDATE_INTERVAL = 1 / 4
 
 
-def create_cwd_watcher(pid):
+def create_cwd_watcher(pid: int) -> None:
     '''
     Creates a daemon thread that checks the `cwd` of a process, then updates the
     `cwd` of the current process.
@@ -23,7 +25,7 @@ def create_cwd_watcher(pid):
         pid (int): PID of the process whose `cwd` is checked.
     '''
 
-    def update_cwd():  # pragma: no cover
+    def update_cwd() -> None:  # pragma: no cover
         # Covered by `test_main_cwd_tracking` but not detected by coverage
         # pylint: disable=import-outside-toplevel
         import psutil
@@ -44,12 +46,12 @@ def create_cwd_watcher(pid):
     threading.Thread(target=update_cwd, daemon=True).start()
 
 
-def get_stdin():
+def get_stdin() -> int:
     '''Returns the file descriptor for stdin.'''
     return sys.stdin.fileno()
 
 
-def run_program(program_args):
+def run_program(program_args: list[str]) -> int:
     '''Returns a file descriptor of the bidirectional pipe to the spawned program.
 
     Args:
@@ -80,7 +82,7 @@ def run_program(program_args):
             sys.exit(f'{exception.strerror.lower()}: {program_args[0]}')
 
     # Update the slave's window size as the master is capturing the signals
-    def window_resize_handler(*_):
+    def window_resize_handler(*_: object) -> None:
         size = fcntl.ioctl(sys.stdin.fileno(), termios.TIOCGWINSZ, '0000')
         fcntl.ioctl(master_fd, termios.TIOCSWINSZ, size)
 
