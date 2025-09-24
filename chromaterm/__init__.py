@@ -69,7 +69,7 @@ class Color:
                 * one background color (hex color `b#` or palette color `b.`),
                 * at least one style (blink, bold, invert, italic, strike,
                     underline), or
-                * a combination of the above, seperated by spaces.
+                * a combination of the above, separated by spaces.
 
                 Example: `"b#123123 f.status-1 bold"`
             palette (chromaterm.Palette): Palette to resolve palette colors.

@@ -77,6 +77,35 @@ like `less` would output the entire file.
 echo "Jul 14 12:28:19  Message from 1.2.3.4: Completed successfully" | ct
 ```
 
+### CLI reference
+
+```text
+ct [options] [program ...]
+```
+
+- `program ...`: When provided, `ct` spawns the program in a PTY and highlights its output while forwarding your input. When omitted, `ct` reads from stdin and writes highlighted output to stdout.
+
+Options:
+
+- `-b, --benchmark`: At exit, print rule usage statistics to stderr.
+- `-c, --config FILE`: Override configuration file location (default resolution listed below).
+- `-r, --reload`: Ask all running ChromaTerm instances to reload their configuration.
+- `-R, --rgb`: Use truecolor output. By default `ct` auto-detects support and falls back to xterm-256.
+- `--no-color`: Disable color output (equivalent to setting `NO_COLOR` or `CT_NO_COLOR=1`).
+- `--force-color`: Force color output even if `NO_COLOR` is set.
+- `--pcre`: Use PCRE2 instead of Python's `re` (visible only when PCRE2 is available on your system).
+- `-v, --version`: Show version and exit.
+- `-h, --help`: Show help message and exit.
+
+Environment:
+
+- `NO_COLOR` or `CT_NO_COLOR=1|true|yes|on`: Disable colors unless `--force-color` is used.
+
+Exit status:
+
+- When running a program, `ct` exits with the spawned program's status code.
+- When reading from stdin, `ct` exits with status `0` on success.
+
 ### Persistence
 
 To always highlight a program, set up an alias in your `.bash_profile`. For
