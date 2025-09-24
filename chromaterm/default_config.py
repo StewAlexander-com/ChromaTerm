@@ -128,10 +128,10 @@ RULE_GENERIC_BAD = Rule(
     'Generic - Bad',
 )
 
-RULE_GENERIC_AMBIGIOUS_BAD = Rule(
+RULE_GENERIC_AMBIGUOUS_BAD = Rule(
     r'(?i)\b(no(pe)?|exit(ed)?|reset(t?ing)?|discard(ed|ing)?|block(ed|ing)?|filter(ed|ing)?|stop(p(ed|ing))?|never|bad)\b',
     Color('f.status-3', palette=PALETTE),
-    'Generic - Ambigious bad',
+    'Generic - Ambiguous bad',
 )
 
 RULE_GENERIC_NOT_TOO_BAD = Rule(
@@ -140,10 +140,10 @@ RULE_GENERIC_NOT_TOO_BAD = Rule(
     'Generic - Not too bad',
 )
 
-RULE_GENERIC_AMBIGIOUS_GOOD = Rule(
+RULE_GENERIC_AMBIGUOUS_GOOD = Rule(
     r'(?i)\b(ye(s|ah?|p)?|start(ed|ing)?|running|good)\b',
     Color('f.status-6', palette=PALETTE),
-    'Generic - Ambigious good',
+    'Generic - Ambiguous good',
 )
 
 RULE_GENERIC_GOOD = Rule(
@@ -160,8 +160,8 @@ def generate_default_rules_yaml():
 
     for rule in [
             RULE_NUMBERS, RULE_URL, RULE_IPV4, RULE_IPV6, RULE_MAC, RULE_DATE,
-            RULE_TIME, RULE_SIZE, RULE_GENERIC_BAD, RULE_GENERIC_AMBIGIOUS_BAD,
-            RULE_GENERIC_NOT_TOO_BAD, RULE_GENERIC_AMBIGIOUS_GOOD,
+            RULE_TIME, RULE_SIZE, RULE_GENERIC_BAD, RULE_GENERIC_AMBIGUOUS_BAD,
+            RULE_GENERIC_NOT_TOO_BAD, RULE_GENERIC_AMBIGUOUS_GOOD,
             RULE_GENERIC_GOOD
     ]:
         rule_dict = {'description': rule.description, 'regex': rule.regex}

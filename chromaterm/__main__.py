@@ -25,7 +25,7 @@ CONFIG_LOCATIONS: Final[List[str]] = [
     '/etc/chromaterm/chromaterm',
 ]
 
-# Maximum chuck size per read
+# Maximum chunk size per read
 READ_SIZE: Final[int] = 8192
 
 # Sequences upon which ct will split during processing (ECMA 035 and 048):
@@ -214,7 +214,7 @@ def load_config(config: Config, data: str, rgb: bool = False, pcre: bool = False
     - description: My first rule
         regex: Hello
         color: b.red
-    - description: My second rule is specfic to groups
+    - description: My second rule is specific to groups
         regex: W(or)ld
         color:
         0: f#321321
@@ -224,7 +224,7 @@ def load_config(config: Config, data: str, rgb: bool = False, pcre: bool = False
 
     Args:
         config (chromaterm.Config): The instance to which data is loaded.
-        data (str): A string containg YAML data.
+        data (str): A string containing YAML data.
         rgb (bool): Whether the terminal is RGB-capable or not.
     '''
     try:
@@ -557,7 +557,7 @@ def main(args: Optional[List[str]] = None, max_wait: Optional[float] = None, wri
         # Begin processing the data (blocking operation)
         process_input(config, data_fd, forward_fd, max_wait)
     except BrokenPipeError:
-        # Surpress the implicit flush that Python runs on exit
+        # Suppress the implicit flush that Python runs on exit
         sys.stdout.flush = lambda: None
     finally:
         # Close data_fd to signal to the child process that we're done
