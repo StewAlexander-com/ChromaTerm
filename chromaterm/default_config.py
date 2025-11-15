@@ -188,18 +188,35 @@ def write_default_config(path):
     Returns:
         True if the file did not exist and was written. False otherwise.
     '''
+    from pathlib import Path
+    
+    config_path = Path(path)
+    
     # Already exists
-    if os.access(path, os.F_OK):
+    if config_path.exists():
         return False
 
-    # No write permission in directory
-    if not os.access(os.path.dirname(path) or os.path.curdir, os.W_OK):
+    # Check write permission in parent directory
+    parent_dir = config_path.parent or Path.cwd()
+    if not parent_dir.exists():
+        # Try to create parent directories if they don't exist
+        try:
+            parent_dir.mkdir(parents=True, exist_ok=True)
+        except OSError:
+            return False
+    
+    # Check write permission
+    try:
+        if not os.access(str(parent_dir), os.W_OK):
+            return False
+    except OSError:
         return False
 
-    with open(path, 'w', encoding='utf-8') as file:
-        file.write(generate_default_rules_yaml())
-
-    return True
+    try:
+        config_path.write_text(generate_default_rules_yaml(), encoding='utf-8')
+        return True
+    except (OSError, PermissionError):
+        return False
 
 
 def yaml_str_presenter(dumper, data):

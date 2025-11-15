@@ -178,7 +178,8 @@ class Color:
         if not SGR_COLOR_RE.search(source_color_code):
             return [[source_color_code, False, None]]
 
-        make_sgr = lambda code_id: b'\x1b[' + code_id + b'm'
+        def make_sgr(code_id: bytes) -> bytes:
+            return b'\x1b[' + code_id + b'm'
         colors = []
         codes = source_color_code.lstrip(b'\x1b[').rstrip(b'm').split(b';')
         skip = 0
@@ -190,7 +191,7 @@ class Color:
                 continue
 
             # Full reset
-            if code == b'' or int(code) == 0:
+            if not code or int(code) == 0:
                 colors.append([make_sgr(b'0'), True, None])
             # Multi-code SGR
             elif code in (b'38', b'48'):
@@ -226,14 +227,14 @@ class Color:
         return colors
 
     @staticmethod
-    def rgb_to_xterm256(_r, _g, _b):
+    def rgb_to_xterm256(_r: int, _g: int, _b: int) -> int:
         '''Downscale from 24-bit RGB to xterm-256.'''
 
-        def index(value, steps):
+        def index(value: int, steps: tuple[int, ...]) -> int:
             '''Returns index of the step closest to value.'''
             return steps.index(min(steps, key=lambda x: abs(x - value)))
 
-        def distance(new_r, new_g, new_b):
+        def distance(new_r: int, new_g: int, new_b: int) -> int:
             '''Magnify the differences (like stdev, but avg/sqrt not needed).'''
             return (new_r - _r)**2 + (new_g - _g)**2 + (new_b - _b)**2
 

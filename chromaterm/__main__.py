@@ -62,7 +62,8 @@ def detect_truecolor_support() -> bool:
         return True
 
     # Popular terminals with truecolor
-    if any(x in term for x in ('xterm-kitty', 'wezterm', 'foot')):
+    truecolor_terms = ('xterm-kitty', 'wezterm', 'foot')
+    if any(x in term for x in truecolor_terms):
         return True
     if term_program in ('iterm.app', 'apple_terminal', 'wezterm', 'vscode'):
         return True
@@ -73,7 +74,7 @@ def detect_truecolor_support() -> bool:
         try:
             if int(vte) >= 3600:
                 return True
-        except ValueError:
+        except (ValueError, TypeError):
             pass
 
     # Windows Terminal (under WSL) indicator
@@ -89,8 +90,10 @@ def args_init(args: Optional[List[str]] = None) -> argparse.Namespace:
     Args:
         args (list): A list of program arguments, Defaults to sys.argv.
     '''
-    formatter = lambda prog: argparse.HelpFormatter(prog, max_help_position=30)  # type: ignore[assignment]
-    parser = argparse.ArgumentParser(formatter_class=formatter)  # type: ignore[arg-type]
+    def formatter(prog: str) -> argparse.HelpFormatter:
+        return argparse.HelpFormatter(prog, max_help_position=30)
+    
+    parser = argparse.ArgumentParser(formatter_class=formatter)
     parser.epilog = 'For more info, go to https://github.com/hSaria/ChromaTerm.'
 
     parser.add_argument('program',
@@ -154,7 +157,7 @@ def args_init(args: Optional[List[str]] = None) -> argparse.Namespace:
     env_no_color = os.getenv('NO_COLOR') is not None
     env_ct_no_color = (os.getenv('CT_NO_COLOR') or '').lower() in (
         '1', 'true', 'yes', 'on')
-    args.no_color = (args.no_color or env_no_color or env_ct_no_color)
+    args.no_color = args.no_color or env_no_color or env_ct_no_color
 
     return args
 
@@ -168,17 +171,22 @@ def eprint(*args: object, **kwargs: Any) -> None:
 def get_default_config_location() -> str:
     '''Returns the first location in `CONFIG_LOCATIONS` that points to a file,
     defaulting to the first item in the list.'''
-    resolve = lambda x: os.path.expanduser(os.path.expandvars(x))
+    from pathlib import Path
+    
+    def resolve(path_str: str) -> Path:
+        # Expand user and vars but don't resolve to absolute to maintain compatibility
+        expanded = os.path.expanduser(os.path.expandvars(path_str))
+        return Path(expanded)
 
     for location in CONFIG_LOCATIONS:
         for extension in ['.yml', '.yaml']:
             path = resolve(location + extension)
 
-            if os.path.isfile(path):
-                return path
+            if path.is_file():
+                return str(path)
 
     # No file found; default to the most-specific location
-    return resolve(CONFIG_LOCATIONS[0] + '.yml')
+    return str(resolve(CONFIG_LOCATIONS[0] + '.yml'))
 
 
 def get_wait_duration(buffer: bytes, min_wait: float = 1 / 256, max_wait: float = 1 / 8) -> float:
@@ -344,11 +352,17 @@ def process_input(config: Config, data_fd: Union[int, socket.socket], forward_fd
         pass
 
     if isinstance(data_fd, int):
-        forward = lambda: os.write(data_fd, os.read(forward_fd, READ_SIZE))
-        read = lambda: os.read(data_fd, READ_SIZE)
+        def forward() -> None:
+            os.write(data_fd, os.read(forward_fd, READ_SIZE))
+        
+        def read() -> bytes:
+            return os.read(data_fd, READ_SIZE)
     else:
-        forward = lambda: data_fd.sendall(forward_fd.recv(READ_SIZE))
-        read = lambda: data_fd.recv(READ_SIZE)
+        def forward() -> None:
+            data_fd.sendall(forward_fd.recv(READ_SIZE))
+        
+        def read() -> bytes:
+            return data_fd.recv(READ_SIZE)
 
     fds = [data_fd] if forward_fd is None else [data_fd, forward_fd]
     buffer = b''
@@ -424,26 +438,34 @@ def read_file(location: str) -> Optional[str]:
     Args:
         location (str): The location of the file to be read.
     '''
-    if not os.access(location, os.F_OK):
+    from pathlib import Path
+    
+    path = Path(location)
+    
+    if not path.exists():
         eprint(f'Configuration file {repr(location)} not found')
         return None
 
     try:
-        with open(location, 'r', encoding='utf-8') as file:
-            return file.read()
+        return path.read_text(encoding='utf-8')
     except PermissionError:
         eprint(f'Cannot read configuration file {repr(location)} (permission)')
         return None
+    except OSError as e:
+        eprint(f'Cannot read configuration file {repr(location)}: {e}')
+        return None
 
 
-def read_ready(*fds: int, timeout: Optional[float] = None) -> list:
+def read_ready(*fds: Union[int, socket.socket], timeout: Optional[float] = None) -> list:
     '''Returns a list of file descriptors that are ready to be read.
 
     Args:
-        *fds (int): Integers that refer to the file descriptors.
+        *fds (int, socket.socket): Integers or sockets that refer to the file descriptors.
         timeout (float): Passed to `select.select`.
     '''
-    return [] if not fds else select.select(fds, [], [], timeout)[0]
+    if not fds:
+        return []
+    return select.select(fds, [], [], timeout)[0]
 
 
 def signal_chromaterm_instances(sig: int) -> int:
@@ -514,9 +536,11 @@ def main(args: Optional[List[str]] = None, max_wait: Optional[float] = None, wri
         args.config = get_default_config_location()
 
         # Write default config if not there
-        if write_default and not os.access(args.config, os.F_OK):
-            import chromaterm.default_config
-            chromaterm.default_config.write_default_config(args.config)
+        if write_default:
+            from pathlib import Path
+            if not Path(args.config).exists():
+                import chromaterm.default_config
+                chromaterm.default_config.write_default_config(args.config)
 
     config = Config(benchmark=args.benchmark)
 
@@ -561,7 +585,14 @@ def main(args: Optional[List[str]] = None, max_wait: Optional[float] = None, wri
         sys.stdout.flush = lambda: None
     finally:
         # Close data_fd to signal to the child process that we're done
-        os.close(data_fd) if isinstance(data_fd, int) else data_fd.close()
+        try:
+            if isinstance(data_fd, int):
+                os.close(data_fd)
+            else:
+                data_fd.close()
+        except OSError:
+            # File descriptor may already be closed
+            pass
 
     return os.wait()[1] >> 8 if args.program else 0
 
