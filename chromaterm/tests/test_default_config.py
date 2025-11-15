@@ -1,5 +1,4 @@
 '''chromaterm.default_config tests'''
-import os
 
 import chromaterm.default_config
 
@@ -157,25 +156,35 @@ def test_rule_time(pcre):
     assert_matches(positives, negatives, rule)
 
 
-def test_write_default_config():
+def test_write_default_config(tmp_path):
     '''Write config file.'''
-    path = __name__ + '1'
+    path = tmp_path / 'config.yml'
     assert chromaterm.default_config.write_default_config(path)
-    assert os.access(path, os.F_OK)
-    os.remove(path)
+    assert path.is_file()
 
 
-def test_write_default_config_exists():
+def test_write_default_config_exists(tmp_path):
     '''Config file already exists.'''
-    path = __name__ + '2'
-    with open(path, 'w', encoding='utf-8'):
-        assert not chromaterm.default_config.write_default_config(path)
-    os.remove(path)
+    path = tmp_path / 'config.yml'
+    path.write_text('', encoding='utf-8')
+    assert not chromaterm.default_config.write_default_config(path)
 
 
-def test_write_default_config_no_permission():
+def test_write_default_config_no_permission(tmp_path):
     '''No write permission on directory.'''
-    path = __name__ + '3' + '/hi.yml'
-    os.mkdir(os.path.dirname(path), mode=0o444)
-    assert not chromaterm.default_config.write_default_config(path + '/hi')
-    os.rmdir(os.path.dirname(path))
+    restricted_dir = tmp_path / 'restricted'
+    restricted_dir.mkdir()
+    restricted_dir.chmod(0o444)
+    target = restricted_dir / 'config.yml'
+
+    try:
+        assert not chromaterm.default_config.write_default_config(target)
+    finally:
+        restricted_dir.chmod(0o755)
+
+
+def test_write_default_config_creates_parent_dirs(tmp_path):
+    '''Missing parent directories should be created when possible.'''
+    target = tmp_path / 'nested' / 'dir' / 'config.yml'
+    assert chromaterm.default_config.write_default_config(target)
+    assert target.is_file()

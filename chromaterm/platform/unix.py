@@ -39,8 +39,12 @@ def create_cwd_watcher(pid: int) -> None:
             try:
                 time.sleep(CWD_UPDATE_INTERVAL)
                 os.chdir(child_process.cwd())
-            except (OSError, psutil.AccessDenied, psutil.NoSuchProcess):
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                break
+            except OSError:
                 pass
+            except Exception:  # pragma: no cover - defensive shutdown during interpreter exit
+                break
 
     # Daemonized to exit immediately with ChromaTerm
     threading.Thread(target=update_cwd, daemon=True).start()

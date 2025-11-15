@@ -1,6 +1,7 @@
 '''chromaterm.__main__ tests'''
 import itertools
 import os
+from pathlib import Path
 import re
 import select
 import socket
@@ -19,6 +20,10 @@ import chromaterm.__main__
 # pylint: disable=consider-using-with,too-many-lines
 
 CLI = sys.executable + ' -m chromaterm'
+
+# Ensure color-dependent CLI tests are not affected by inherited NO_COLOR settings.
+os.environ.pop('NO_COLOR', None)
+os.environ.pop('CT_NO_COLOR', None)
 
 CODE_ISATTY = '''import os, sys
 stdin = os.isatty(sys.stdin.fileno())
@@ -115,21 +120,36 @@ def test_eprint(capsys):
     assert msg in capsys.readouterr().err
 
 
-def test_get_default_config_location(monkeypatch):
+def test_get_default_config_location(monkeypatch, tmp_path):
     '''Assert that, if no file is found, the most-specific location is returned.'''
-    monkeypatch.setattr(chromaterm.__main__, 'CONFIG_LOCATIONS', ['1', '2'])
-    open('2.yml', 'a', encoding='utf-8').close()
+    loc_one = tmp_path / '1'
+    loc_two = tmp_path / '2'
+    monkeypatch.setattr(chromaterm.__main__, 'CONFIG_LOCATIONS',
+                        [str(loc_one), str(loc_two)])
+    (loc_two.with_suffix('.yml')).write_text('', encoding='utf-8')
 
-    try:
-        assert chromaterm.__main__.get_default_config_location() == '2.yml'
-    finally:
-        os.remove('2.yml')
+    assert chromaterm.__main__.get_default_config_location() == \
+        str(loc_two.with_suffix('.yml'))
 
 
-def test_get_default_config_location_default(monkeypatch):
+def test_get_default_config_location_default(monkeypatch, tmp_path):
     '''Assert that, if no file is found, the most-specific location is returned.'''
-    monkeypatch.setattr(chromaterm.__main__, 'CONFIG_LOCATIONS', ['1', '2'])
-    assert chromaterm.__main__.get_default_config_location() == '1.yml'
+    loc_one = tmp_path / '1'
+    loc_two = tmp_path / '2'
+    monkeypatch.setattr(chromaterm.__main__, 'CONFIG_LOCATIONS',
+                        [str(loc_one), str(loc_two)])
+    assert chromaterm.__main__.get_default_config_location() == \
+        str(loc_one.with_suffix('.yml'))
+
+
+def test_get_default_config_path_prefers_existing_yaml(monkeypatch, tmp_path):
+    '''Ensure .yaml files are considered if present.'''
+    base = tmp_path / 'config'
+    target_yaml = base.with_suffix('.yaml')
+    target_yaml.write_text('rules: []\n', encoding='utf-8')
+    monkeypatch.setattr(chromaterm.__main__, 'CONFIG_LOCATIONS', [str(base)])
+
+    assert chromaterm.__main__.get_default_config_path() == target_yaml
 
 
 def test_get_wait_duration():
@@ -676,6 +696,14 @@ def test_read_file():
         assert chromaterm.__main__.read_file(__name__ + '4') == 'hello world'
     finally:
         os.remove(__name__ + '4')
+
+
+def test_read_file_accepts_path(tmp_path):
+    '''read_file should accept Path objects directly.'''
+    target = tmp_path / 'config.yml'
+    target.write_text('hello world', encoding='utf-8')
+
+    assert chromaterm.__main__.read_file(target) == 'hello world'
 
 
 def test_read_file_no_file(capsys):

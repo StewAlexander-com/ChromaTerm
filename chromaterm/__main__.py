@@ -10,8 +10,9 @@ import select
 import signal
 import sys
 from ctypes.util import find_library
+from pathlib import Path
 import socket
-from typing import Any, Final, List, Optional, Tuple, Union
+from typing import Any, Final, List, Optional, Sequence, Tuple, Union
 
 import yaml
 
@@ -19,11 +20,13 @@ from chromaterm import Color, Config, Palette, Rule, __version__
 
 # Possible locations of the config file, without the extension. Most-specific
 # locations lead in the list.
-CONFIG_LOCATIONS: Final[List[str]] = [
+CONFIG_LOCATIONS: Final[Tuple[str, ...]] = (
     '~/.chromaterm',
     os.getenv('XDG_CONFIG_HOME', '~/.config') + '/chromaterm/chromaterm',
     '/etc/chromaterm/chromaterm',
-]
+)
+
+CONFIG_EXTENSIONS: Final[Tuple[str, ...]] = ('.yml', '.yaml')
 
 # Maximum chunk size per read
 READ_SIZE: Final[int] = 8192
@@ -165,20 +168,38 @@ def eprint(*args: object, **kwargs: Any) -> None:
     print('ct:', *args, end='\r\n', file=sys.stderr, **kwargs)
 
 
+def _expand_config_locations(locations: Optional[Sequence[str]] = None) -> Tuple[Path, ...]:
+    '''Returns candidate config file locations with supported extensions.'''
+    # Preserve order while removing duplicates
+    resolved = {}
+    base_locations = locations or CONFIG_LOCATIONS
+
+    for location in base_locations:
+        base = Path(os.path.expandvars(location)).expanduser()
+
+        for extension in CONFIG_EXTENSIONS:
+            resolved.setdefault(base.with_suffix(extension), None)
+
+    if not resolved:
+        raise ValueError('CONFIG_LOCATIONS must contain at least one entry')
+
+    return tuple(resolved.keys())
+
+
+def get_default_config_path(locations: Optional[Sequence[str]] = None) -> Path:
+    '''Returns the first existing config path or the first candidate if none exist.'''
+    candidates = _expand_config_locations(locations)
+
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate
+
+    return candidates[0]
+
+
 def get_default_config_location() -> str:
-    '''Returns the first location in `CONFIG_LOCATIONS` that points to a file,
-    defaulting to the first item in the list.'''
-    resolve = lambda x: os.path.expanduser(os.path.expandvars(x))
-
-    for location in CONFIG_LOCATIONS:
-        for extension in ['.yml', '.yaml']:
-            path = resolve(location + extension)
-
-            if os.path.isfile(path):
-                return path
-
-    # No file found; default to the most-specific location
-    return resolve(CONFIG_LOCATIONS[0] + '.yml')
+    '''Backwards-compatible helper that returns the default config path as a string.'''
+    return str(get_default_config_path())
 
 
 def get_wait_duration(buffer: bytes, min_wait: float = 1 / 256, max_wait: float = 1 / 8) -> float:
@@ -417,23 +438,25 @@ def process_input(config: Config, data_fd: Union[int, socket.socket], forward_fd
         ready_fds = read_ready(*fds, timeout=max_wait)
 
 
-def read_file(location: str) -> Optional[str]:
+def read_file(location: Union[str, os.PathLike[str]]) -> Optional[str]:
     '''Returns the contents of a file or `None` on error. The error is printed
     to stderr.
 
     Args:
-        location (str): The location of the file to be read.
+        location (str | PathLike): The location of the file to be read.
     '''
-    if not os.access(location, os.F_OK):
-        eprint(f'Configuration file {repr(location)} not found')
-        return None
+    path = Path(location).expanduser()
 
     try:
-        with open(location, 'r', encoding='utf-8') as file:
-            return file.read()
+        return path.read_text(encoding='utf-8')
+    except FileNotFoundError:
+        eprint(f'Configuration file {repr(str(path))} not found')
     except PermissionError:
-        eprint(f'Cannot read configuration file {repr(location)} (permission)')
-        return None
+        eprint(f'Cannot read configuration file {repr(str(path))} (permission)')
+    except OSError as exc:
+        eprint(f'Error reading configuration file {repr(str(path))}: {exc}')
+
+    return None
 
 
 def read_ready(*fds: int, timeout: Optional[float] = None) -> list:
@@ -509,14 +532,12 @@ def main(args: Optional[List[str]] = None, max_wait: Optional[float] = None, wri
     if args.reload:
         return f'Processes reloaded: {signal_chromaterm_instances(signal.SIGUSR1)}'
 
-    # Config file wasn't overridden; use default file
-    if not args.config:
-        args.config = get_default_config_location()
+    config_path = Path(args.config).expanduser() if args.config else get_default_config_path()
 
-        # Write default config if not there
-        if write_default and not os.access(args.config, os.F_OK):
-            import chromaterm.default_config
-            chromaterm.default_config.write_default_config(args.config)
+    # Config file wasn't overridden; use default file
+    if not args.config and write_default and not config_path.exists():
+        import chromaterm.default_config
+        chromaterm.default_config.write_default_config(config_path)
 
     config = Config(benchmark=args.benchmark)
 
@@ -537,7 +558,7 @@ def main(args: Optional[List[str]] = None, max_wait: Optional[float] = None, wri
 
     # Signal handler to trigger reloading the config
     def reload_config_handler(*_):
-        config_data = read_file(args.config)
+        config_data = read_file(config_path)
 
         if config_data:
             load_config(config, config_data, rgb=args.rgb, pcre=args.pcre)

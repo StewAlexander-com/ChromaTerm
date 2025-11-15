@@ -143,7 +143,7 @@ rules:
 ```
 
 The configuration file can be placed in one of the locations below. The first one
-found is used.
+found is used, and both `.yml` and `.yaml` extensions are supported transparently.
 
  * `$HOME/.chromaterm.yml`
  * `$XDG_CONFIG_HOME/chromaterm/chromaterm.yml` (`$XDG_CONFIG_HOME` defaults to
