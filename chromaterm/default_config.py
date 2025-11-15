@@ -1,5 +1,6 @@
 '''A store for the default rules of ChromaTerm'''
 import os
+from pathlib import Path
 
 import yaml
 
@@ -188,16 +189,19 @@ def write_default_config(path):
     Returns:
         True if the file did not exist and was written. False otherwise.
     '''
-    # Already exists
-    if os.access(path, os.F_OK):
+    target = Path(os.path.expandvars(str(path))).expanduser()
+
+    try:
+        if target.exists():
+            return False
+    except OSError:
         return False
 
-    # No write permission in directory
-    if not os.access(os.path.dirname(path) or os.path.curdir, os.W_OK):
+    try:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(generate_default_rules_yaml(), encoding='utf-8')
+    except OSError:
         return False
-
-    with open(path, 'w', encoding='utf-8') as file:
-        file.write(generate_default_rules_yaml())
 
     return True
 

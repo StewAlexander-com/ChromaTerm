@@ -8,10 +8,12 @@ import os
 import re
 import select
 import signal
+import socket
 import sys
 from ctypes.util import find_library
-import socket
-from typing import Any, Final, List, Optional, Tuple, Union
+from functools import lru_cache
+from pathlib import Path
+from typing import Any, Final, List, Optional, Sequence, Tuple, Union
 
 import yaml
 
@@ -19,11 +21,11 @@ from chromaterm import Color, Config, Palette, Rule, __version__
 
 # Possible locations of the config file, without the extension. Most-specific
 # locations lead in the list.
-CONFIG_LOCATIONS: Final[List[str]] = [
+CONFIG_LOCATIONS: Final[Tuple[str, ...]] = (
     '~/.chromaterm',
     os.getenv('XDG_CONFIG_HOME', '~/.config') + '/chromaterm/chromaterm',
     '/etc/chromaterm/chromaterm',
-]
+)
 
 # Maximum chunk size per read
 READ_SIZE: Final[int] = 8192
@@ -46,7 +48,32 @@ ANSI_CONTROL_STRINGS_START: Final[Tuple[bytes, ...]] = (b'\x1b\x50', b'\x1b\x58'
                               b'\x1b\x5e', b'\x1b\x5f')
 ANSI_CONTROL_STRINGS_END: Final[Tuple[bytes, ...]] = (b'\x07', b'\x1b\x5c')
 
+Pathish = Union[str, os.PathLike[str]]
 
+
+def _expand_path(path: Pathish) -> Path:
+    '''Expand environment variables and user home in `path`.'''
+    return Path(os.path.expandvars(os.fspath(path))).expanduser()
+
+
+def iter_config_paths(locations: Optional[Sequence[Pathish]] = None) -> Tuple[Path, ...]:
+    '''Return all candidate config file locations, ordered by specificity.'''
+    candidates = []
+    for base in locations or CONFIG_LOCATIONS:
+        expanded = _expand_path(base)
+
+        suffix_targets = (expanded,) if expanded.suffix else (
+            expanded.with_suffix('.yml'),
+            expanded.with_suffix('.yaml'),
+        )
+
+        candidates.extend(suffix_targets)
+
+    # Preserve order while removing duplicates
+    return tuple(dict.fromkeys(candidates))
+
+
+@lru_cache(maxsize=1)
 def detect_truecolor_support() -> bool:
     '''Returns True if the terminal likely supports 24-bit truecolor.'''
     colorterm = (os.getenv('COLORTERM') or '').lower()
@@ -166,19 +193,15 @@ def eprint(*args: object, **kwargs: Any) -> None:
 
 
 def get_default_config_location() -> str:
-    '''Returns the first location in `CONFIG_LOCATIONS` that points to a file,
-    defaulting to the first item in the list.'''
-    resolve = lambda x: os.path.expanduser(os.path.expandvars(x))
+    '''Returns the first resolved config path that exists or the most specific candidate.'''
+    candidates = iter_config_paths()
 
-    for location in CONFIG_LOCATIONS:
-        for extension in ['.yml', '.yaml']:
-            path = resolve(location + extension)
-
-            if os.path.isfile(path):
-                return path
+    for path in candidates:
+        if path.is_file():
+            return str(path)
 
     # No file found; default to the most-specific location
-    return resolve(CONFIG_LOCATIONS[0] + '.yml')
+    return str(candidates[0])
 
 
 def get_wait_duration(buffer: bytes, min_wait: float = 1 / 256, max_wait: float = 1 / 8) -> float:
@@ -417,23 +440,51 @@ def process_input(config: Config, data_fd: Union[int, socket.socket], forward_fd
         ready_fds = read_ready(*fds, timeout=max_wait)
 
 
-def read_file(location: str) -> Optional[str]:
+def read_file(location: Pathish) -> Optional[str]:
     '''Returns the contents of a file or `None` on error. The error is printed
     to stderr.
 
     Args:
-        location (str): The location of the file to be read.
+        location (path-like): The location of the file to be read.
     '''
-    if not os.access(location, os.F_OK):
-        eprint(f'Configuration file {repr(location)} not found')
-        return None
+    path = _expand_path(location)
+    display = repr(str(path))
 
     try:
-        with open(location, 'r', encoding='utf-8') as file:
-            return file.read()
+        return path.read_text(encoding='utf-8')
+    except FileNotFoundError:
+        eprint(f'Configuration file {display} not found')
     except PermissionError:
-        eprint(f'Cannot read configuration file {repr(location)} (permission)')
-        return None
+        eprint(f'Cannot read configuration file {display} (permission)')
+    except OSError as exc:
+        eprint(f'Cannot read configuration file {display}: {exc}')
+
+    return None
+
+
+def load_config_from_file(config: Config,
+                          location: Pathish,
+                          *,
+                          rgb: bool = False,
+                          pcre: bool = False) -> bool:
+    '''Load configuration rules from disk into ``config``.
+
+    Args:
+        config: Instance to populate.
+        location: Config file path.
+        rgb: Whether to resolve colors for RGB terminals.
+        pcre: Whether to compile PCRE2 patterns.
+
+    Returns:
+        True when the configuration was refreshed, False otherwise.
+    '''
+    config_data = read_file(location)
+
+    if not config_data:
+        return False
+
+    load_config(config, config_data, rgb=rgb, pcre=pcre)
+    return True
 
 
 def read_ready(*fds: int, timeout: Optional[float] = None) -> list:
@@ -510,11 +561,13 @@ def main(args: Optional[List[str]] = None, max_wait: Optional[float] = None, wri
         return f'Processes reloaded: {signal_chromaterm_instances(signal.SIGUSR1)}'
 
     # Config file wasn't overridden; use default file
-    if not args.config:
+    if args.config:
+        args.config = str(_expand_path(args.config))
+    else:
         args.config = get_default_config_location()
 
         # Write default config if not there
-        if write_default and not os.access(args.config, os.F_OK):
+        if write_default:
             import chromaterm.default_config
             chromaterm.default_config.write_default_config(args.config)
 
@@ -537,10 +590,7 @@ def main(args: Optional[List[str]] = None, max_wait: Optional[float] = None, wri
 
     # Signal handler to trigger reloading the config
     def reload_config_handler(*_):
-        config_data = read_file(args.config)
-
-        if config_data:
-            load_config(config, config_data, rgb=args.rgb, pcre=args.pcre)
+        load_config_from_file(config, args.config, rgb=args.rgb, pcre=args.pcre)
 
     # Trigger the initial loading
     reload_config_handler()

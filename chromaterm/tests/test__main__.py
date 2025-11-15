@@ -210,6 +210,28 @@ def test_load_config_multiple_colors():
     assert config.rules[0].color.color == 'b#fffaaa f#aaafff'
 
 
+def test_load_config_from_file(tmp_path):
+    '''Populate a Config instance directly from a file path.'''
+    config = chromaterm.__main__.Config()
+    config_file = tmp_path / 'rules.yml'
+    config_file.write_text('''rules:
+- regex: hello
+  color: bold
+''',
+                           encoding='utf-8')
+
+    assert chromaterm.__main__.load_config_from_file(config, config_file)
+    assert len(config.rules) == 1
+
+
+def test_load_config_from_file_missing(tmp_path):
+    '''Gracefully handle an absent config file.'''
+    config = chromaterm.__main__.Config()
+    missing = tmp_path / 'missing.yml'
+
+    assert not chromaterm.__main__.load_config_from_file(config, missing)
+    assert not config.rules
+
 def test_load_config_missing_rules(capsys):
     '''Parse a config file with the `rules` list missing.'''
     config = chromaterm.__main__.Config()

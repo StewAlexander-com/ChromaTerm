@@ -177,5 +177,8 @@ def test_write_default_config_no_permission():
     '''No write permission on directory.'''
     path = __name__ + '3' + '/hi.yml'
     os.mkdir(os.path.dirname(path), mode=0o444)
-    assert not chromaterm.default_config.write_default_config(path + '/hi')
-    os.rmdir(os.path.dirname(path))
+    try:
+        assert not chromaterm.default_config.write_default_config(path + '/hi')
+    finally:
+        os.chmod(os.path.dirname(path), 0o755)
+        os.rmdir(os.path.dirname(path))

@@ -1,5 +1,13 @@
 *.pyc
 .coverage
+.coverage.*
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+core
+__pycache__/
+htmlcov/
+.venv/
 build/
 chromaterm.egg-info/
 dist/

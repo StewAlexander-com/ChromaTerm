@@ -56,6 +56,10 @@ pip install -e .
 python -m chromaterm --help
 ```
 
+> On first run ChromaTerm writes `~/.chromaterm.yml` (creating missing parent
+> directories). Override the location with `--config /path/to/rules.yml` when
+> you want to keep rules elsewhere.
+
 ## Usage
 
 Prefix your command with `ct`. It's that simple.
@@ -230,6 +234,12 @@ have a few differences; use this option only if you have a good understanding
 of their unique features.
 
 > The default rules work on both engines.
+
+## Development
+
+- Install the runtime dependencies (`psutil`, `PyYAML`, optional PCRE2) plus `pytest` for running tests locally.
+- Execute `python3 -m pytest` from the repo root to run the same suite Cursor executes.
+- When pointing `--config` at a custom path, ChromaTerm now creates any missing parent directories before writing defaults, which makes temporary/dev workflows easier.
 
 ## Help
 

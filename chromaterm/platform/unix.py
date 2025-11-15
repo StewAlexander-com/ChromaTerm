@@ -39,8 +39,10 @@ def create_cwd_watcher(pid: int) -> None:
             try:
                 time.sleep(CWD_UPDATE_INTERVAL)
                 os.chdir(child_process.cwd())
-            except (OSError, psutil.AccessDenied, psutil.NoSuchProcess):
+            except (OSError, psutil.Error):
                 pass
+            except Exception:  # pylint: disable=broad-exception-caught
+                return
 
     # Daemonized to exit immediately with ChromaTerm
     threading.Thread(target=update_cwd, daemon=True).start()
