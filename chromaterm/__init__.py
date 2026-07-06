@@ -193,8 +193,11 @@ class Color:
             if code == b'' or int(code) == 0:
                 colors.append([make_sgr(b'0'), True, None])
             # Multi-code SGR
-            elif code in (b'38', b'48'):
-                color_type = 'fg' if code == b'38' else 'bg'
+            elif code in (b'38', b'48', b'58'):
+                # 58 (underline color) is not a type ChromaTerm tracks; it is
+                # passed through untouched (never marked as a reset) to avoid
+                # corrupting it into multiple single-code SGRs
+                color_type = {b'38': 'fg', b'48': 'bg'}.get(code)
 
                 # xterm-256
                 if len(codes) > index + 2 and codes[index + 1] == b'5':
@@ -208,7 +211,11 @@ class Color:
                 else:
                     return [[source_color_code, False, None]]
 
-                colors.append([make_sgr(code), is_reset, color_type])
+                colors.append([
+                    make_sgr(code),
+                    is_reset if color_type else False,
+                    color_type,
+                ])
             # Single-code SGR
             else:
                 color = [make_sgr(b'%d' % int(code)), False, None]

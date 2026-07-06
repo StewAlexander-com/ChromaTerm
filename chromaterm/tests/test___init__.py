@@ -183,6 +183,44 @@ def test_color_decode_sgr_split_compound():
         assert color_type == types[index]
 
 
+def test_color_decode_sgr_underline_color():
+    '''Underline color (SGR 58) is passed through untouched, not split into
+    multiple (corrupted) single-code SGRs, and never marked as a reset.'''
+    for code in [b'58;5;12', b'58;2;255;0;0']:
+        for is_reset in [False, True]:
+            colors = chromaterm.Color.decode_sgr(make_sgr(code),
+                                                 is_reset=is_reset)
+            assert len(colors) == 1
+
+            for color_code, color_reset, color_type in colors:
+                assert color_code == make_sgr(code)
+                assert color_reset is False
+                assert color_type is None
+
+
+def test_color_decode_sgr_underline_color_malformed():
+    '''Malformed underline color (SGR 58) is not touched.'''
+    for code in [b'58;5', b'58;2;1;1']:
+        colors = chromaterm.Color.decode_sgr(make_sgr(code))
+        assert len(colors) == 1
+
+        for color_code, color_reset, color_type in colors:
+            assert color_code == make_sgr(code)
+            assert color_reset is False
+            assert color_type is None
+
+
+def test_color_decode_sgr_underline_color_reset():
+    '''Underline color reset (SGR 59) is passed through untouched.'''
+    colors = chromaterm.Color.decode_sgr(make_sgr(b'59'))
+    assert len(colors) == 1
+
+    for color_code, color_reset, color_type in colors:
+        assert color_code == make_sgr(b'59')
+        assert color_reset is False
+        assert color_type is None
+
+
 def test_color_decode_sgr_unrecognized():
     '''An SGR that's valid, but the type isn't recognized during decoding.'''
     colors = chromaterm.Color.decode_sgr(make_sgr(b'60'))
@@ -1266,6 +1304,24 @@ def test_config_highlight_tracking_malformed(pcre):
     expected = [
         rule.color.color_code, b'he', b'\x1b[38;5m', b'llo',
         rule.color.color_reset
+    ]
+
+    assert config.highlight(data) == b''.join(expected)
+
+
+def test_config_highlight_tracking_underline_color(pcre):
+    '''A rule with a match that has an underline color (SGR 58) in the middle
+    and its reset (SGR 59) at the end. Both are inserted back untouched and do
+    not act as resets for the rule's color.
+    1: x-------------'''
+    rule = chromaterm.Rule('hello', chromaterm.Color('b#123123'), pcre=pcre)
+    config = chromaterm.Config()
+    config.rules.append(rule)
+
+    data = b'he\x1b[58;2;255;0;0mllo\x1b[59m'
+    expected = [
+        rule.color.color_code, b'he', b'\x1b[58;2;255;0;0m', b'llo',
+        rule.color.color_reset, b'\x1b[59m'
     ]
 
     assert config.highlight(data) == b''.join(expected)
