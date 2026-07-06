@@ -243,6 +243,145 @@ def test_load_config_yaml_format_error(capsys):
     assert 'Parse error:' in capsys.readouterr().err
 
 
+def test_load_config_include(tmp_path):
+    '''Parse a config which includes another file. The included rules come
+    before the file's own rules, and relative paths are resolved against the
+    directory of the including file.'''
+    (tmp_path / 'included.yml').write_text('''rules:
+    - regex: included
+      color: bold''')
+
+    config_path = tmp_path / 'config.yml'
+    config_path.write_text('''include:
+    - included.yml
+
+rules:
+- regex: own
+  color: bold''')
+
+    config = chromaterm.__main__.Config()
+    chromaterm.__main__.load_config(config,
+                                    config_path.read_text(),
+                                    config_location=str(config_path))
+
+    assert len(config.rules) == 2
+    assert config.rules[0].regex == 'included'
+    assert config.rules[1].regex == 'own'
+
+
+def test_load_config_include_bare_rule_list(tmp_path):
+    '''Parse a config which includes a file that is a plain list of rules, like
+    the files in `contrib/rules`.'''
+    (tmp_path / 'included.yml').write_text('''- regex: included
+  color: bold''')
+
+    config_path = tmp_path / 'config.yml'
+    config_path.write_text('''include:
+    - included.yml
+
+rules:
+- regex: own
+  color: bold''')
+
+    config = chromaterm.__main__.Config()
+    chromaterm.__main__.load_config(config,
+                                    config_path.read_text(),
+                                    config_location=str(config_path))
+
+    assert len(config.rules) == 2
+    assert config.rules[0].regex == 'included'
+
+
+def test_load_config_include_only(tmp_path):
+    '''Parse a config which has an `include` list but no `rules` list.'''
+    (tmp_path / 'included.yml').write_text('''rules:
+    - regex: included
+      color: bold''')
+
+    config_path = tmp_path / 'config.yml'
+    config_path.write_text('include:\n- included.yml')
+
+    config = chromaterm.__main__.Config()
+    chromaterm.__main__.load_config(config,
+                                    config_path.read_text(),
+                                    config_location=str(config_path))
+
+    assert len(config.rules) == 1
+    assert config.rules[0].regex == 'included'
+
+
+def test_load_config_include_circular(capsys, tmp_path):
+    '''Parse configs which include each other. The circular include is skipped
+    with an error while everything else is still loaded.'''
+    (tmp_path / 'a.yml').write_text('''include:
+    - b.yml
+
+rules:
+- regex: rule-a
+  color: bold''')
+
+    (tmp_path / 'b.yml').write_text('''include:
+    - a.yml
+
+rules:
+- regex: rule-b
+  color: bold''')
+
+    config = chromaterm.__main__.Config()
+    chromaterm.__main__.load_config(config,
+                                    (tmp_path / 'a.yml').read_text(),
+                                    config_location=str(tmp_path / 'a.yml'))
+
+    assert 'circular include' in capsys.readouterr().err
+    assert [x.regex for x in config.rules] == ['rule-b', 'rule-a']
+
+
+def test_load_config_include_missing_file(capsys, tmp_path):
+    '''Parse a config which includes a file that doesn't exist. The include is
+    skipped with an error while the file's own rules are still loaded.'''
+    config_path = tmp_path / 'config.yml'
+    config_path.write_text('''include:
+    - missing.yml
+
+rules:
+- regex: own
+  color: bold''')
+
+    config = chromaterm.__main__.Config()
+    chromaterm.__main__.load_config(config,
+                                    config_path.read_text(),
+                                    config_location=str(config_path))
+
+    assert 'not found' in capsys.readouterr().err
+    assert len(config.rules) == 1
+    assert config.rules[0].regex == 'own'
+
+
+def test_load_config_include_format_error(capsys):
+    '''Parse configs with `include` format problems.'''
+    config = chromaterm.__main__.Config()
+
+    chromaterm.__main__.load_config(config, 'include: 1')
+    assert '"include" is not a list' in capsys.readouterr().err
+
+    chromaterm.__main__.load_config(config, 'include:\n- 1\nrules: []')
+    assert 'not a string' in capsys.readouterr().err
+
+
+def test_load_config_include_contrib_rules():
+    '''The rule files under `contrib/rules` are includable as-is.'''
+    contrib = os.path.join(os.path.dirname(chromaterm.__file__), '..',
+                           'contrib', 'rules', 'cisco.yml')
+
+    if not os.access(contrib, os.F_OK):
+        pytest.skip('contrib/rules not present')
+
+    config = chromaterm.__main__.Config()
+    chromaterm.__main__.load_config(config, f'include:\n- {contrib}')
+
+    assert len(config.rules) > 0
+
+
 def test_parse_palette():
     '''Parse a palette.'''
     palette = chromaterm.__main__.parse_palette({

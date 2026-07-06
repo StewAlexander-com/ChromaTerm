@@ -204,11 +204,18 @@ def get_wait_duration(buffer: bytes, min_wait: float = 1 / 256, max_wait: float 
     return min_wait
 
 
-def load_config(config: Config, data: str, rgb: bool = False, pcre: bool = False) -> None:
+def load_config(config: Config,
+                data: str,
+                rgb: bool = False,
+                pcre: bool = False,
+                config_location: Optional[str] = None) -> None:
     '''Reads configuration from a YAML-based string, formatted like so:
     palette:
       red: "#ff0000"
       blue: "#0000ff"
+
+    include:
+    - other-rules.yml
 
     rules:
     - description: My first rule
@@ -226,47 +233,127 @@ def load_config(config: Config, data: str, rgb: bool = False, pcre: bool = False
         config (chromaterm.Config): The instance to which data is loaded.
         data (str): A string containing YAML data.
         rgb (bool): Whether the terminal is RGB-capable or not.
+        pcre (bool): Whether to use PCRE2 or default to Python's RE.
+        config_location (str): Path of the file `data` came from. Used to
+            resolve relative `include` paths and detect circular includes.
+    '''
+    rules = parse_config(data, rgb=rgb, pcre=pcre, config_location=config_location)
+
+    if rules is None:
+        return
+
+    # Put the non-overlapping (exclusive=True) rules at the top
+    config.rules = sorted(rules, key=lambda x: not x.exclusive)
+
+
+def parse_config(data: str,
+                 rgb: bool = False,
+                 pcre: bool = False,
+                 config_location: Optional[str] = None,
+                 visited: Optional[frozenset] = None) -> Optional[List[Rule]]:
+    # pylint: disable=too-many-branches,too-many-return-statements
+    '''Returns the list of rules parsed from a YAML configuration string,
+    formatted according to `load_config`. A configuration that is a plain list
+    is treated as a list of rules (the format of the `contrib/rules` files).
+
+    Files referenced by the top-level `include` list are parsed recursively;
+    their rules are loaded before the configuration's own rules. Relative
+    include paths are resolved against the directory of the including file.
+
+    Errors are printed to stderr. A problem with an included file or a single
+    rule skips that item, while `None` is returned if `data` itself cannot be
+    parsed.
+
+    Args:
+        data (str): A string containing YAML data.
+        rgb (bool): Whether the terminal is RGB-capable or not.
+        pcre (bool): Whether to use PCRE2 or default to Python's RE.
+        config_location (str): Path of the file `data` came from.
+        visited (frozenset): Paths of the files up the include chain; used to
+            detect circular includes.
     '''
     try:
         data = yaml.safe_load(data) or {}
     except yaml.YAMLError as exception:
         eprint('Parse error:', exception)
-        return
+        return None
 
+    # A configuration that is just a list is treated as a list of rules
+    if isinstance(data, list):
+        data = {'rules': data}
+
+    includes = data.get('include') if isinstance(data, dict) else None
     palette = data.get('palette') if isinstance(data, dict) else None
     rules = data.get('rules') if isinstance(data, dict) else None
 
     if palette is not None:
         if not isinstance(palette, dict):
             eprint('Parse error: "palette" is not a dictionary')
-            return
+            return None
 
         palette = parse_palette(palette)
 
         if not isinstance(palette, Palette):
             eprint(palette)
-            return
+            return None
 
-    if rules is None:
+    if includes is not None and not isinstance(includes, list):
+        eprint('Parse error: "include" is not a list')
+        return None
+
+    if rules is None and includes is None:
         eprint('Parse error: "rules" list not found in configuration')
-        return
+        return None
 
-    if not isinstance(rules, list):
+    if rules is not None and not isinstance(rules, list):
         eprint('Parse error: "rules" is not a list')
-        return
+        return None
 
-    config.rules.clear()
+    visited = frozenset(visited or ())
 
-    for rule in rules:
+    if config_location:
+        visited |= {os.path.abspath(config_location)}
+
+    parsed_rules = []
+
+    for location in includes or []:
+        if not isinstance(location, str):
+            eprint(f'Error on include {repr(location)}: not a string')
+            continue
+
+        path = os.path.expanduser(os.path.expandvars(location))
+
+        # Resolve relative paths against the including file's directory
+        if not os.path.isabs(path) and config_location:
+            path = os.path.join(
+                os.path.dirname(os.path.abspath(config_location)), path)
+
+        path = os.path.abspath(path)
+
+        if path in visited:
+            eprint(f'Error on include {repr(location)}: circular include')
+            continue
+
+        included_data = read_file(path)
+
+        if included_data is None:
+            continue
+
+        parsed_rules += parse_config(included_data,
+                                     rgb=rgb,
+                                     pcre=pcre,
+                                     config_location=path,
+                                     visited=visited) or []
+
+    for rule in rules or []:
         rule = parse_rule(rule, palette=palette, rgb=rgb, pcre=pcre)
 
         if isinstance(rule, Rule):
-            config.rules.append(rule)
+            parsed_rules.append(rule)
         else:
             eprint(rule)
 
-    # Put the non-overlapping (exclusive=True) rules at the top
-    config.rules = sorted(config.rules, key=lambda x: not x.exclusive)
+    return parsed_rules
 
 
 def parse_palette(data: dict) -> Union[Palette, str]:
@@ -540,7 +627,11 @@ def main(args: Optional[List[str]] = None, max_wait: Optional[float] = None, wri
         config_data = read_file(args.config)
 
         if config_data:
-            load_config(config, config_data, rgb=args.rgb, pcre=args.pcre)
+            load_config(config,
+                        config_data,
+                        rgb=args.rgb,
+                        pcre=args.pcre,
+                        config_location=args.config)
 
     # Trigger the initial loading
     reload_config_handler()

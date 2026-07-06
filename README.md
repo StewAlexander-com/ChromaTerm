@@ -183,6 +183,29 @@ Colors can be applied per RegEx group (see the 2nd example rule). Any group in
 the RegEx can be referenced, including group `0` (entire match) and
 [named groups](https://docs.python.org/3/howto/regex.html#non-capturing-and-named-groups).
 
+### Include
+
+Other rule files can be pulled in with the top-level `include` list, which is
+handy for the topic-specific rule sets in
+[`contrib/rules`](https://github.com/StewAlexander-com/ChromaTerm/tree/main/contrib/rules)
+(e.g. Cisco or Juniper) without copying them into your config:
+
+```yaml
+include:
+- rules/cisco.yml
+- ~/work/extra-rules.yml
+
+rules:
+- regex: hello
+  color: bold
+```
+
+Relative paths are resolved against the directory of the file that includes
+them, and `~`/environment variables are expanded. An included file can be a
+regular configuration file or a plain list of rules (the `contrib/rules`
+format). Included rules are loaded before the file's own rules, and includes
+can nest (circular includes are detected and skipped).
+
 ### Exclusive
 
 When multiple rules match the same text, ChromaTerm highlights the text with all
