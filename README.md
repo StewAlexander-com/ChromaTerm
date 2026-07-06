@@ -17,51 +17,39 @@ underline-color ANSI sequences (SGR 58) from wrapped programs.
 
 ## Installation
 
-```shell
-# Recommended (isolated):
-pipx install chromaterm
+Requires [Python 3.8+](https://www.python.org/downloads/). Each platform below is **3 steps**: install `pipx` (if needed), install ChromaTerm, verify.
 
-# Or with pip
-pip install chromaterm
-
-# Or using uv
-uv tool install chromaterm
-```
-
-### From this fork (GitHub install)
-
-If you want the version from this fork (`StewAlexander-com/ChromaTerm`), install directly from GitHub:
+### Mac
 
 ```shell
-# pipx (recommended)
-pipx install "git+https://github.com/StewAlexander-com/ChromaTerm.git@main#egg=chromaterm"
-
-# pip
-pip install "git+https://github.com/StewAlexander-com/ChromaTerm.git@main#egg=chromaterm"
-
-# uv (as a tool)
-uv tool install git+https://github.com/StewAlexander-com/ChromaTerm.git@main
+brew install pipx
+pipx install "git+https://github.com/StewAlexander-com/ChromaTerm.git@v1.0.0#egg=chromaterm"
+ct --version
 ```
 
-### From source (clone this repo)
+### Linux (Debian, Ubuntu, and similar)
 
 ```shell
-git clone https://github.com/StewAlexander-com/ChromaTerm.git
-cd ChromaTerm
-
-# Using pipx to install the local checkout
-pipx install .
-
-# Or create a virtual environment and install in editable mode
-python -m venv .venv && . .venv/bin/activate
-pip install -e .
-
-# Run without installing (module mode)
-python -m chromaterm --help
+sudo apt update && sudo apt install -y pipx
+pipx install "git+https://github.com/StewAlexander-com/ChromaTerm.git@v1.0.0#egg=chromaterm"
+ct --version
 ```
 
-Installing from a clone is recommended if you want to use the bundled
-[`contrib/rules`](#include) without copying them elsewhere.
+### Windows
+
+**WSL (recommended — full `ct ssh` support):** use the [Linux](#linux-debian-ubuntu-and-similar) steps inside your WSL terminal.
+
+**Native Windows (pipe mode — `echo hello | ct`):**
+
+```powershell
+py -m pip install pipx
+py -m pipx install "git+https://github.com/StewAlexander-com/ChromaTerm.git@v1.0.0#egg=chromaterm"
+ct --version
+```
+
+If `ct` is not found, open a **new terminal** or run `pipx ensurepath` (Mac/Linux) and try again.
+
+> **Note:** `pip install chromaterm` from PyPI installs the original upstream package, not this fork. Use the `pipx install git+https://...` command above for v1.0.0 features.
 
 ## Usage
 
