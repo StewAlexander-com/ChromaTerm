@@ -495,7 +495,7 @@ class Rule:
         if not isinstance(color, Color):
             raise TypeError('color must be a chromaterm.Color')
 
-        if group > self._regex_object.groups:
+        if group < 0 or group > self._regex_object.groups:
             raise ValueError(f'regex has {self._regex_object.groups} group(s);'
                              f' {group} is invalid')
 

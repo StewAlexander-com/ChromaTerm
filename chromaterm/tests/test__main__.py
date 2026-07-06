@@ -387,6 +387,15 @@ def test_parse_rule_group_out_of_bounds():
     assert re.search(msg_re, chromaterm.__main__.parse_rule(rule))
 
 
+def test_parse_rule_group_negative():
+    '''Parse a rule with a negative `group` number. It should error out during
+    parsing instead of raising an IndexError once the rule matches.'''
+    msg_re = r'regex has .* group\(s\); .* is invalid'
+
+    rule = {'regex': 'x(y)z', 'color': {-1: 'b#fffaaa'}}
+    assert re.search(msg_re, chromaterm.__main__.parse_rule(rule))
+
+
 def test_process_input_backspaces(capsys, pcre):
     '''Backspaces in the input should be accounted for when determining if typing
     is in progress.'''

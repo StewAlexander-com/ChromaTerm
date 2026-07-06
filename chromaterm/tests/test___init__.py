@@ -616,6 +616,15 @@ def test_rule_set_color_invalid_value_group_index(pcre):
         rule.set_color(chromaterm.Color('bold'), group=2)
 
 
+def test_rule_set_color_invalid_value_group_negative(pcre):
+    '''Reference a negative group index. It must be rejected at load time as it
+    would otherwise raise an IndexError during matching, crashing ChromaTerm.'''
+    rule = chromaterm.Rule('hello', pcre=pcre)
+
+    with pytest.raises(ValueError, match='regex has 0 group'):
+        rule.set_color(chromaterm.Color('bold'), group=-1)
+
+
 def test_rule_set_color_invalid_value_group_name(pcre):
     '''Reference the name of a group that doesn't exist.'''
     rule = chromaterm.Rule('(?P<hi>hello)', pcre=pcre)
