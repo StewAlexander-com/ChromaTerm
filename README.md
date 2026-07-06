@@ -305,5 +305,7 @@ appreciated). For the original upstream project, see
 
 ### Windows support
 
-To use ChromaTerm on Windows, you will need to run it with the
-[Windows Subsystem for Linux (`WSL`)](https://docs.microsoft.com/en-us/windows/wsl/about)
+On native Windows, pipe mode works (`echo hello | ct`). Interactive program
+wrapping (`ct ssh ...`) requires a POSIX terminal and is available under
+[Windows Subsystem for Linux (WSL)](https://docs.microsoft.com/en-us/windows/wsl/about)
+or on Linux and macOS. Config reload (`ct --reload`) is also POSIX-only.

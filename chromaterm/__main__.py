@@ -7,8 +7,8 @@ import io
 import os
 import re
 import select
-import signal
 import sys
+import time
 from ctypes.util import find_library
 import socket
 from typing import Any, Final, List, Optional, Tuple, Union
@@ -16,6 +16,7 @@ from typing import Any, Final, List, Optional, Tuple, Union
 import yaml
 
 from chromaterm import Color, Config, Palette, Rule, __version__
+from chromaterm import platform
 
 # Possible locations of the config file, without the extension. Most-specific
 # locations lead in the list.
@@ -523,14 +524,34 @@ def read_file(location: str) -> Optional[str]:
         return None
 
 
-def read_ready(*fds: int, timeout: Optional[float] = None) -> list:
+def read_ready(*fds: Union[int, socket.socket],
+               timeout: Optional[float] = None) -> list:
     '''Returns a list of file descriptors that are ready to be read.
 
     Args:
         *fds (int): Integers that refer to the file descriptors.
         timeout (float): Passed to `select.select`.
     '''
-    return [] if not fds else select.select(fds, [], [], timeout)[0]
+    if not fds:
+        return []
+
+    # select() on Windows only accepts sockets; pipe/stdin fds use a fallback
+    # path so pipe mode still works without a PTY.
+    if sys.platform == 'win32':
+        sockets = [fd for fd in fds if isinstance(fd, socket.socket)]
+
+        if sockets:
+            return list(select.select(sockets, [], [], timeout)[0])
+
+        if timeout == 0:
+            return []
+
+        if timeout is not None:
+            time.sleep(timeout)
+
+        return list(fds)
+
+    return list(select.select(fds, [], [], timeout)[0])
 
 
 def signal_chromaterm_instances(sig: int) -> int:
@@ -539,6 +560,9 @@ def signal_chromaterm_instances(sig: int) -> int:
     Returns:
         The number of processes reloaded.
     '''
+    if not platform.SUPPORTS_SIGNAL_RELOAD:
+        return 0
+
     import psutil
 
     count = 0
@@ -594,7 +618,12 @@ def main(args: Optional[List[str]] = None, max_wait: Optional[float] = None, wri
     args = args_init(args)
 
     if args.reload:
-        return f'Processes reloaded: {signal_chromaterm_instances(signal.SIGUSR1)}'
+        reload_sig = platform.reload_signal()
+
+        if reload_sig is None:
+            return 'Process reload is not supported on this platform'
+
+        return f'Processes reloaded: {signal_chromaterm_instances(reload_sig)}'
 
     # Config file wasn't overridden; use default file
     if not args.config:
@@ -611,11 +640,20 @@ def main(args: Optional[List[str]] = None, max_wait: Optional[float] = None, wri
     if args.benchmark:
         atexit.register(config.print_benchmark_results)
 
-    import chromaterm.platform.unix as platform
-
     if args.program:
+        if not platform.SUPPORTS_PTY:
+            eprint('Running programs interactively requires a POSIX '
+                   'environment (Linux, macOS, or WSL on Windows).')
+            eprint('Pipe data into ct instead:  echo hello | ct')
+            return 1
+
         # ChromaTerm is spawning the program in a pty; stdin is forwarded
-        data_fd = platform.run_program([args.program] + args.arguments)
+        try:
+            data_fd = platform.run_program([args.program] + args.arguments)
+        except OSError as exception:
+            eprint(exception)
+            return 1
+
         forward_fd = platform.get_stdin()
     else:
         # Data is being piped into ChromaTerm's stdin; no forwarding needed
@@ -640,9 +678,8 @@ def main(args: Optional[List[str]] = None, max_wait: Optional[float] = None, wri
     if args.no_color and not args.force_color:
         config.disabled = True
 
-    # Ignore SIGINT (CTRL+C) and attach reload handler
-    signal.signal(signal.SIGINT, signal.SIG_IGN)
-    signal.signal(signal.SIGUSR1, reload_config_handler)
+    # Ignore SIGINT (CTRL+C) and attach reload handler on supported platforms
+    platform.setup_runtime_signals(reload_config_handler)
 
     try:
         # Begin processing the data (blocking operation)
@@ -652,9 +689,9 @@ def main(args: Optional[List[str]] = None, max_wait: Optional[float] = None, wri
         sys.stdout.flush = lambda: None
     finally:
         # Close data_fd to signal to the child process that we're done
-        os.close(data_fd) if isinstance(data_fd, int) else data_fd.close()
+        platform.close_data_fd(data_fd)
 
-    return os.wait()[1] >> 8 if args.program else 0
+    return platform.wait_child() if args.program else 0
 
 
 if __name__ == '__main__':
