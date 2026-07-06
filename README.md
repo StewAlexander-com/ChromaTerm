@@ -166,8 +166,9 @@ found is used.
 If no file is found, a default one is created in your home directory.
 
 > Check out [`contrib/rules`](https://github.com/StewAlexander-com/ChromaTerm/tree/main/contrib/rules);
-> it has topic-specific rule sets (`cisco.yml`, `juniper.yml`, `generic-networking.yml`)
-> that are not included in the defaults.
+> it has topic-specific rule sets (`ssh-sessions.yml`, `network-numbers.yml`, `linux.yml`,
+> `generic-networking.yml`, `cisco.yml`, `juniper.yml`). New installs automatically include
+> `ssh-sessions.yml` (Linux/Debian servers, switch protocol states, VLAN/error counter coloring).
 
 ### Description
 

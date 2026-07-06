@@ -179,3 +179,64 @@ def test_write_default_config_no_permission():
     os.mkdir(os.path.dirname(path), mode=0o444)
     assert not chromaterm.default_config.write_default_config(path + '/hi')
     os.rmdir(os.path.dirname(path))
+
+
+def test_generate_default_rules_includes_ssh_bundle():
+    '''Default config references the bundled SSH session rule set.'''
+    data = chromaterm.default_config.generate_default_rules_yaml()
+
+    assert chromaterm.default_config.SSH_SESSIONS_RULES in data
+    assert 'ssh-sessions.yml' in data
+    assert '(?<!\\.)\\d+' not in data
+    assert 'rules:' in data
+
+
+def test_ssh_linux_rules_match_failures(pcre):
+    '''Bundled Linux rules highlight high-signal SSH and systemd failures.'''
+    import chromaterm.__main__
+
+    config = chromaterm.__main__.Config()
+    chromaterm.__main__.load_config(
+        config,
+        f'include:\n- {chromaterm.default_config.SSH_SESSIONS_RULES}',
+        pcre=pcre)
+
+    assert len(config.rules) > 0
+
+    sample = b'Permission denied (publickey).\nUnit nginx.service failed.'
+    highlighted = config.highlight(sample)
+    assert highlighted != sample
+
+
+def test_ssh_networking_rules_match_bgp(pcre):
+    '''Bundled networking rules highlight protocol state on switches.'''
+    import chromaterm.__main__
+
+    config = chromaterm.__main__.Config()
+    chromaterm.__main__.load_config(
+        config,
+        f'include:\n- {chromaterm.default_config.SSH_SESSIONS_RULES}',
+        pcre=pcre)
+
+    sample = b'BGP state is Established, VLAN 100 configured'
+    highlighted = config.highlight(sample)
+    assert highlighted != sample
+
+
+def test_ssh_network_numbers_vlan_and_errors(pcre):
+    '''Network number rules highlight VLAN IDs and error counters.'''
+    import chromaterm.__main__
+
+    config = chromaterm.__main__.Config()
+    chromaterm.__main__.load_config(
+        config,
+        f'include:\n- {chromaterm.default_config.SSH_SESSIONS_RULES}',
+        pcre=pcre)
+
+    vlan_sample = b'native vlan 42, trunk allowed vlan 100'
+    errors_sample = b'5 input errors, 0 CRC, errors: 12, [110/10]'
+    zero_sample = b'0 output errors, drops: 0'
+
+    assert config.highlight(vlan_sample) != vlan_sample
+    assert config.highlight(errors_sample) != errors_sample
+    assert config.highlight(zero_sample) != zero_sample

@@ -1,0 +1,86 @@
+# Contextual number highlighting for VLANs, counters, and network metrics.
+# Non-zero error counts are red; zero counters are green; identifiers use purple/teal.
+
+- description: VLAN label and ID
+  regex: '(?i)\b(VLAN|Vlan)\s*#?(\d{1,4})\b'
+  color:
+    1: f#df99f0
+    2: bold f#df99f0
+  exclusive: true
+
+- description: Native, access, or trunk VLAN assignment
+  regex: '(?i)\b((?:native|access|trunk allowed|voice)\s+)?(vlan|VLAN)\s+(\d{1,4})\b'
+  color:
+    2: f#df99f0
+    3: bold f#df99f0
+  exclusive: true
+
+- description: VLAN ID lists (e.g. vlans 10,20,100)
+  regex: '(?i)\b(vlans?|VLANs?)\s+(\d{1,4}(?:\s*[-,]\s*\d{1,4})*)\b'
+  color:
+    1: f#df99f0
+    2: bold f#df99f0
+  exclusive: true
+
+- description: Non-zero interface error and drop counters
+  regex: '(?i)\b([1-9]\d*)\s+(?:(input|output)\s+)?(errors?|drops?|CRC|runts|giants|collisions?|overruns?|frames?|ignored|throttles?)\b'
+  color:
+    1: bold f#c71800
+    3: f#c71800
+  exclusive: true
+
+- description: 'Labeled non-zero counters (errors 5, drops 12)'
+  regex: '(?i)\b((?:input |output )?(?:errors?|drops?|CRC|runts|giants|collisions?|overruns?|lost|ignored|no buffer|pause frames?|unknown protocol drops?|total output drops?):\s*)([1-9]\d*)\b'
+  color:
+    1: f#c96901
+    2: bold f#c71800
+  exclusive: true
+
+- description: Zero interface counters (healthy)
+  regex: '(?i)\b((?:input |output )?(?:errors?|drops?|CRC|runts|giants|collisions?|overruns?):\s*)(0)\b'
+  color:
+    1: f#79bf02
+    2: f#28c501
+  exclusive: true
+
+- description: Zero counter before keyword (0 errors, 0 drops)
+  regex: '(?i)\b(0)\s+(?:(input|output)\s+)?(errors?|drops?|CRC|runts|giants|collisions?)\b'
+  color:
+    1: f#28c501
+    3: f#79bf02
+  exclusive: true
+
+- description: Routing admin distance and metric bracket values
+  regex: '\[(\d{1,3})/(\d{1,12})\]'
+  color:
+    1: bold f#cab902
+    2: bold f#a35a00
+  exclusive: true
+
+- description: EIGRP feasible distance tuple (12345/67890)
+  regex: '\((\d{1,12})/(\d{1,12})\)'
+  color:
+    1: bold f#cab902
+    2: bold f#a35a00
+  exclusive: true
+
+- description: Port-channel and interface index numbers
+  regex: '(?i)\b((?:Po|port-channel|Eth|Gi|Te|Hu|Fa|ge|xe|et)-?)(\d+(?:/\d+)*)\b'
+  color:
+    1: f#03d28d
+    2: bold f#03d28d
+  exclusive: true
+
+- description: Device uptime counters (10d23h, 5w3d)
+  regex: '\b(\d{1,5}[dw])(\d{1,2}[dhms])?\b'
+  color:
+    1: bold f#a35a00
+    2: f#a35a00
+  exclusive: true
+
+- description: Linux ifconfig/ip non-zero error or drop counts
+  regex: '(?i)\b(RX errors|TX errors|dropped|overruns|frame|fifo)(\s+[0-9]+)*\s+([1-9]\d*)\b'
+  color:
+    1: f#c96901
+    3: bold f#c71800
+  exclusive: true

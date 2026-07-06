@@ -1,0 +1,8 @@
+# Curated bundle for SSH to switches and Linux servers.
+# Vendor-specific rules (Cisco, Juniper) stay in contrib/rules — add those
+# to your config when you know the platform.
+
+include:
+- generic-networking.yml
+- network-numbers.yml
+- linux.yml

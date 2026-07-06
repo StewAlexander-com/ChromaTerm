@@ -43,3 +43,6 @@ version = { attr = "chromaterm.__version__" }
 [tool.setuptools.packages.find]
 include = ["chromaterm*"]
 
+[tool.setuptools.package-data]
+chromaterm = ["rules/*.yml"]
+

@@ -1,0 +1,72 @@
+# Debian / Linux server SSH sessions — high-signal status and log highlighting.
+# Loaded via ssh-sessions.yml or directly in your config.
+
+- description: Linux - systemd failed or dead states
+  regex: '(?i)\b(failed|dead|inactive\(dead\)|auto-restart|exited|not-found)\b'
+  color: f#c71800
+  exclusive: true
+
+- description: Linux - systemd active or running
+  regex: '(?i)\b(active \(running\)|active \(exited\)|active \(waiting\)|active \(listening\)|\bactive\b)'
+  color: f#28c501
+  exclusive: true
+
+- description: Linux - systemd transitional states
+  regex: '(?i)\b(activating|deactivating|reloading|maintenance|masking|unmasking)\b'
+  color: f#cab902
+  exclusive: true
+
+- description: Linux - journal and syslog severity (error and above)
+  regex: '(?i)\b(EMERG|EMERGENCY|ALERT|CRIT|CRITICAL|ERR|ERROR|SEGV|segfault|core dumped)\b'
+  color: f#c71800
+  exclusive: true
+
+- description: Linux - journal and syslog warnings
+  regex: '(?i)\b(WARN|WARNING|NOTICE)\b'
+  color: f#cab902
+  exclusive: true
+
+- description: Linux - SSH and PAM authentication failures
+  regex: '(?i)\b(authentication failure|authentication failed|permission denied|publickey|password mismatch|too many authentication failures|connection refused|connection reset|host key verification failed|no route to host|no matching host key|POSSIBLE BREAK-IN ATTEMPT)\b'
+  color: f#c71800
+  exclusive: true
+
+- description: Linux - kernel and memory pressure
+  regex: '(?i)\b(oom[- ]kill|out of memory|killed process|kernel panic|BUG:|Call Trace:|general protection fault|watchdog: BUG|soft lockup|hard LOCKUP|I/O error|medium error|EXT4-fs error|nvme.*failed)\b'
+  color: f#c71800
+  exclusive: true
+
+- description: Linux - apt and dpkg problems
+  regex: '(?i)\b(E: |dpkg: error|errors were found|broken packages|unmet dependencies|need to run.*apt --fix|held broken packages|sub-process.* returned an error)\b'
+  color: f#c71800
+  exclusive: true
+
+- description: Linux - apt and dpkg success
+  regex: '(?i)\b(0 upgraded, 0 newly installed|is already the newest version|Setting up |Processing triggers for)\b'
+  color: f#79bf02
+  exclusive: true
+
+- description: Linux - file and command not found
+  regex: '(?i)\b(command not found|No such file or directory|cannot access|cannot open|Operation not permitted|Read-only file system)\b'
+  color: f#ca9102
+  exclusive: true
+
+- description: Linux - interface link up
+  regex: '(?i)\b(state UP|link/up|BROADCAST.*UP)\b'
+  color: f#28c501
+  exclusive: true
+
+- description: Linux - interface link down
+  regex: '(?i)\b(state DOWN|link/down|NO-CARRIER)\b'
+  color: f#c71800
+  exclusive: true
+
+- description: Linux - listening sockets
+  regex: '(?i)\b(:22 |:80 |:443 |:3306 |:5432 |LISTEN)\b'
+  color: f#5698c8
+  exclusive: true
+
+- description: Linux - shell prompt (user@host)
+  regex: '^[\w.-]+@[\w.-]+:[~\w/.-]*[$#] '
+  color: bold f#03d28d
+  exclusive: true

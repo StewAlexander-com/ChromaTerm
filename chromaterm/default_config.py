@@ -126,40 +126,53 @@ RULE_GENERIC_BAD = Rule(
     r'(?i)\b(password|abnormal(ly)?|down|los(t|ing)|err(ors?)?|(den(y|ies|ied)?)|reject(ing|ed)?|drop(ped|s)?|(err\-)?disabled?|(timed?\-?out)|fail(s|ed|iure)?|disconnect(ed)?|unreachable|invalid|bad|notconnect|unusable|blk|inaccessible|wrong|collisions?|unsynchronized|mismatch|runts)\b',
     Color('f.status-1', palette=PALETTE),
     'Generic - Bad',
+    exclusive=True,
 )
 
 RULE_GENERIC_AMBIGUOUS_BAD = Rule(
-    r'(?i)\b(no(pe)?|exit(ed)?|reset(t?ing)?|discard(ed|ing)?|block(ed|ing)?|filter(ed|ing)?|stop(p(ed|ing))?|never|bad)\b',
+    r'(?i)\b(discard(ed|ing)?|block(ed|ing)?|filter(ed|ing)?)\b',
     Color('f.status-3', palette=PALETTE),
     'Generic - Ambiguous bad',
+    exclusive=True,
 )
 
 RULE_GENERIC_NOT_TOO_BAD = Rule(
     r'(?i)\b(warnings?)\b',
     Color('f.status-4', palette=PALETTE),
     'Generic - Not too bad',
+    exclusive=True,
 )
 
 RULE_GENERIC_AMBIGUOUS_GOOD = Rule(
     r'(?i)\b(ye(s|ah?|p)?|start(ed|ing)?|running|good)\b',
     Color('f.status-6', palette=PALETTE),
     'Generic - Ambiguous good',
+    exclusive=True,
 )
 
 RULE_GENERIC_GOOD = Rule(
     r'(?i)\b(up|ok(ay)?|permit(ed|s)?|accept(s|ed)?|enabled?|online|succe((ss(ful|fully)?)|ed(ed)?)?|connect(ed)?|reachable|valid|forwarding|synchronized)\b',
     Color('f.status-7', palette=PALETTE),
     'Generic - Good',
+    exclusive=True,
 )
+
+# Bundled SSH-focused rule sets (shipped inside the chromaterm package).
+RULES_DIR = os.path.join(os.path.dirname(__file__), 'rules')
+SSH_SESSIONS_RULES = os.path.join(RULES_DIR, 'ssh-sessions.yml')
 
 
 def generate_default_rules_yaml():
     '''Returns a YAML string of the default configuration.'''
     data = yaml.dump({'palette': PALETTE.colors}, sort_keys=False) + '\n'
+
+    if os.path.isfile(SSH_SESSIONS_RULES):
+        data += yaml.dump({'include': [SSH_SESSIONS_RULES]}, sort_keys=False) + '\n'
+
     data += 'rules:\n'
 
     for rule in [
-            RULE_NUMBERS, RULE_URL, RULE_IPV4, RULE_IPV6, RULE_MAC, RULE_DATE,
+            RULE_URL, RULE_IPV4, RULE_IPV6, RULE_MAC, RULE_DATE,
             RULE_TIME, RULE_SIZE, RULE_GENERIC_BAD, RULE_GENERIC_AMBIGUOUS_BAD,
             RULE_GENERIC_NOT_TOO_BAD, RULE_GENERIC_AMBIGUOUS_GOOD,
             RULE_GENERIC_GOOD
