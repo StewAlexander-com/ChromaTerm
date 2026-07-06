@@ -1,13 +1,17 @@
 # ChromaTerm
 
-[![Build status](https://img.shields.io/github/workflow/status/hSaria/ChromaTerm/CI/main)](https://github.com/hSaria/ChromaTerm/actions?query=workflow%3ACI)
-[![Coverage status](https://coveralls.io/repos/github/hSaria/ChromaTerm/badge.svg)](https://coveralls.io/github/hSaria/ChromaTerm)
+[![Build status](https://img.shields.io/github/actions/workflow/status/StewAlexander-com/ChromaTerm/CI/main)](https://github.com/StewAlexander-com/ChromaTerm/actions?query=workflow%3ACI)
 [![Downloads](https://static.pepy.tech/personalized-badge/chromaterm?period=total&units=international_system&left_color=grey&right_color=brightgreen&left_text=downloads)](https://pepy.tech/project/chromaterm)
-[![Maintainability](https://img.shields.io/codeclimate/maintainability/hSaria/ChromaTerm)](https://codeclimate.com/github/hSaria/ChromaTerm)
 [![PyPI version](https://badge.fury.io/py/chromaterm.svg)](https://badge.fury.io/py/chromaterm)
 
 ChromaTerm (`ct`) is a Python script that colors your terminal's output using
 regular expressions. It even works with interactive programs, like SSH.
+
+This repository is a maintained fork of [hSaria/ChromaTerm](https://github.com/hSaria/ChromaTerm)
+with additional features, fixes, and documentation. Recent improvements include
+config file `include` support, load-time validation of rule groups, improved
+truecolor detection, color on/off controls, and correct pass-through of
+underline-color ANSI sequences (SGR 58) from wrapped programs.
 
 ![alt text](https://github.com/hSaria/ChromaTerm/raw/main/.github/junos-show-interface.png "Example output")
 
@@ -55,6 +59,9 @@ pip install -e .
 # Run without installing (module mode)
 python -m chromaterm --help
 ```
+
+Installing from a clone is recommended if you want to use the bundled
+[`contrib/rules`](#include) without copying them elsewhere.
 
 ## Usage
 
@@ -125,6 +132,12 @@ Replace `/bin/bash` with your shell of choice.
 - To force colors even if `NO_COLOR` is set, pass `--force-color`.
 - Truecolor is auto-detected and can be explicitly enabled with `--rgb`.
 
+### Reloading configuration
+
+Running instances reload their config when they receive `SIGUSR1`. Use
+`ct -r` (or `ct --reload`) to signal every other running `ct` process, or send
+`SIGUSR1` directly to a specific instance.
+
 ## Highlight Rules
 
 ChromaTerm reads highlight rules from a YAML configuration file, formatted like so:
@@ -152,8 +165,9 @@ found is used.
 
 If no file is found, a default one is created in your home directory.
 
-> Check out [`contrib/rules`](https://github.com/hSaria/ChromaTerm/tree/main/contrib/rules);
-> it has some topic-specific rules that are not included in the defaults.
+> Check out [`contrib/rules`](https://github.com/StewAlexander-com/ChromaTerm/tree/main/contrib/rules);
+> it has topic-specific rule sets (`cisco.yml`, `juniper.yml`, `generic-networking.yml`)
+> that are not included in the defaults.
 
 ### Description
 
@@ -183,6 +197,11 @@ Colors can be applied per RegEx group (see the 2nd example rule). Any group in
 the RegEx can be referenced, including group `0` (entire match) and
 [named groups](https://docs.python.org/3/howto/regex.html#non-capturing-and-named-groups).
 
+Group numbers must refer to a real capture group in the regex. Invalid references
+(including negative numbers, out-of-range indices, or unknown named groups) are
+rejected when the configuration is loaded; the error is printed to stderr and
+that rule is skipped.
+
 ### Include
 
 Other rule files can be pulled in with the top-level `include` list, which is
@@ -200,11 +219,27 @@ rules:
   color: bold
 ```
 
+A config may consist of only an `include` list:
+
+```yaml
+include:
+- /path/to/ChromaTerm/contrib/rules/cisco.yml
+- /path/to/ChromaTerm/contrib/rules/juniper.yml
+```
+
+When installed from a source checkout, `contrib/rules` lives next to the
+`chromaterm` package directory and can be referenced with an absolute path as
+shown above.
+
 Relative paths are resolved against the directory of the file that includes
 them, and `~`/environment variables are expanded. An included file can be a
 regular configuration file or a plain list of rules (the `contrib/rules`
 format). Included rules are loaded before the file's own rules, and includes
-can nest (circular includes are detected and skipped).
+can nest.
+
+Problems with a single include (missing file, circular include, or parse error in
+that file) are reported to stderr and that include is skipped; other includes
+and rules in the same configuration still load.
 
 ### Exclusive
 
@@ -220,6 +255,13 @@ by the first rule that matches it, use the `exclusive` flag.
 
 In the code above, no other rule will highlight `hello`, unless it comes first
 and has the `exclusive` flag set.
+
+### Configuration errors
+
+When ChromaTerm loads a configuration file, errors are printed to stderr as
+`ct: ...` messages. A bad rule or include is skipped; the rest of the
+configuration continues to load. If the file itself cannot be parsed, no rules
+from that file are applied.
 
 ## Palette
 
@@ -257,8 +299,9 @@ of their unique features.
 ## Help
 
 If you've got any questions or suggestions, please open up an
-[issue](https://github.com/hSaria/ChromaTerm/issues/new/choose) (always
-appreciated).
+[issue](https://github.com/StewAlexander-com/ChromaTerm/issues/new/choose) (always
+appreciated). For the original upstream project, see
+[hSaria/ChromaTerm](https://github.com/hSaria/ChromaTerm/issues).
 
 ### Windows support
 
